@@ -1,80 +1,48 @@
-from fastapi import FastAPI, Request, HTTPException
-from dotenv import load_dotenv
+import hmac
+import hashlib
 import os
-import json
-import subprocess
-from datetime import datetime
+from fastapi import FastAPI, Request, HTTPException, Header
+from dotenv import load_dotenv
+from tasks import process_clickup_task
 
 load_dotenv()
 
-app = FastAPI(title="ClickUp Webhook Receiver")
+app = FastAPI(title="ClickUp Automation Gateway")
 
-CLICKUP_WEBHOOK_SECRET = os.getenv("CLICKUP_WEBHOOK_SECRET", "")
-
-# Log file to record all incoming webhooks
-LOG_FILE = "webhook_log.json"
-
-
-def append_to_log(event: dict):
-    logs = []
-    if os.path.exists(LOG_FILE):
-        with open(LOG_FILE, "r") as f:
-            try:
-                logs = json.load(f)
-            except json.JSONDecodeError:
-                logs = []
-    logs.append(event)
-    with open(LOG_FILE, "w") as f:
-        json.dump(logs, f, indent=2)
-
-
-def git_commit_and_push(message: str):
-    """Stage the log file, commit, and push to git."""
-    try:
-        subprocess.run(["git", "add", LOG_FILE], check=True, cwd=".")
-        subprocess.run(["git", "commit", "-m", message], check=True, cwd=".")
-        subprocess.run(["git", "push"], check=True, cwd=".")
-        return True
-    except subprocess.CalledProcessError as e:
-        print(f"Git error: {e}")
-        return False
+CLICKUP_WEBHOOK_SECRET = os.getenv("CLICKUP_WEBHOOK_SECRET", "your_webhook_secret_here")
 
 
 @app.get("/")
 def health():
-    return {"status": "running", "message": "ClickUp webhook receiver is live"}
+    return {"status": "running", "message": "ClickUp Automation Gateway is live"}
 
 
 @app.post("/webhook/clickup")
-async def clickup_webhook(request: Request):
-    payload = await request.json()
+async def clickup_webhook(
+    request: Request,
+    x_signature: str = Header(None),
+):
+    # 1. Read the raw payload body
+    payload = await request.body()
 
-    event_type = payload.get("event", "unknown")
-    task_id    = payload.get("task_id", "N/A")
-    history    = payload.get("history_items", [{}])
-    changed_by = history[0].get("user", {}).get("username", "unknown") if history else "unknown"
-
-    print(f"\n📥 Received event: {event_type} | Task: {task_id} | By: {changed_by}")
-
-    # Build a log entry
-    log_entry = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "event":     event_type,
-        "task_id":   task_id,
-        "changed_by": changed_by,
-        "raw": payload,
-    }
-
-    # 1. Save to log file
-    append_to_log(log_entry)
-    print(f"✅ Logged to {LOG_FILE}")
-
-    # 2. Commit & push to git
-    commit_msg = f"webhook: {event_type} on task {task_id} by {changed_by}"
-    pushed = git_commit_and_push(commit_msg)
-    if pushed:
-        print(f"🚀 Pushed to git: {commit_msg}")
+    # 2. Security: Validate signature only if ClickUp sends one
+    if x_signature:
+        computed_signature = hmac.new(
+            CLICKUP_WEBHOOK_SECRET.encode(),
+            payload,
+            hashlib.sha256,
+        ).hexdigest()
+        if not hmac.compare_digest(computed_signature, x_signature):
+            raise HTTPException(status_code=403, detail="Invalid cryptographic signature")
     else:
-        print("⚠️  Git push skipped (no remote or nothing to commit)")
+        print("⚠️  No X-Signature header — webhook secret not configured in ClickUp")
 
-    return {"status": "ok", "event": event_type, "task_id": task_id}
+    # 3. Parse JSON data
+    data = await request.json()
+
+    # 4. Push to Redis queue via Celery — non-blocking
+    clickup_task_id = data.get("task_id")
+    process_clickup_task.delay(clickup_task_id)
+
+    # 5. Immediate response back to ClickUp
+    return {"status": "accepted", "message": "Task queued for processing"}
