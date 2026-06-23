@@ -1,7 +1,6 @@
-from django.contrib import admin
-from django.urls import path, include
+from django.urls import path
+from .views import UserRegistrationView
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/users/', include('users.urls')), # Include your users app URLs
+    path('register/', UserRegistrationView.as_view(), name='user_register'),
 ]
