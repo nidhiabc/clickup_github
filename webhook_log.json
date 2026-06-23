@@ -45,5 +45,52 @@
       "team_id": "90161668382",
       "webhook_id": "f5133c5b-7412-497c-b3a8-e299a7cc8346"
     }
+  },
+  {
+    "timestamp": "2026-06-23T07:50:27.279792",
+    "event": "taskStatusUpdated",
+    "task_id": "86d3ehfx9",
+    "changed_by": "nidhi mittal",
+    "raw": {
+      "event": "taskStatusUpdated",
+      "history_items": [
+        {
+          "id": "5140620969149112225",
+          "type": 1,
+          "date": "1782201026408",
+          "field": "status",
+          "parent_id": "901615519556",
+          "data": {
+            "status_type": "custom"
+          },
+          "source": null,
+          "user": {
+            "id": 302570864,
+            "username": "nidhi mittal",
+            "email": "mittalnidhi.mittal@gmail.com",
+            "color": "#595d66",
+            "initials": "NM",
+            "profilePicture": null,
+            "role": 1,
+            "role_subtype": 0
+          },
+          "before": {
+            "status": "to do",
+            "color": "#87909e",
+            "orderindex": 0,
+            "type": "open"
+          },
+          "after": {
+            "status": "in progress",
+            "color": "#1090e0",
+            "orderindex": 1,
+            "type": "custom"
+          }
+        }
+      ],
+      "task_id": "86d3ehfx9",
+      "team_id": "90161668382",
+      "webhook_id": "f5133c5b-7412-497c-b3a8-e299a7cc8346"
+    }
   }
 ]
